@@ -49,6 +49,13 @@ class BasicCommandEvent:
         self.ability_name = ability_name
 
 
+class PlayerStatsEvent:
+    def __init__(self, frame: int, pid: int, food_used: float):
+        self.frame = frame
+        self.pid = pid
+        self.food_used = food_used
+
+
 def test_resolve_player_defaults_to_first_player() -> None:
     player = resolve_player([FakePlayer(1, "Alpha", "Terran"), FakePlayer(2, "Beta", "Zerg")], None)
 
@@ -145,6 +152,25 @@ def test_extract_build_order_uses_command_events_for_research_and_morphs() -> No
     assert [item.format() for item in items] == [
         "  ?   0:10  Stimpack",
         "  ?   0:20  Orbital Command",
+    ]
+
+
+def test_extract_build_order_uses_unit_commands_and_reserved_supply() -> None:
+    player = FakePlayer(1, "Alpha", "Terran")
+
+    items = extract_build_order(
+        [
+            PlayerStatsEvent(0, 1, 34),
+            BasicCommandEvent(160, player, "BuildHellion"),
+            BasicCommandEvent(320, player, "TrainBanshee"),
+            UnitBornEvent(480, 1, "Hellion"),
+        ],
+        PlayerRef(pid=1, name="Alpha"),
+    )
+
+    assert [item.format() for item in items] == [
+        " 34   0:10  Hellion",
+        " 36   0:20  Banshee",
     ]
 
 

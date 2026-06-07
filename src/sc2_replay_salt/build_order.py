@@ -11,6 +11,7 @@ TRACKED_EVENT_TYPES = {
 }
 
 COMMAND_PREFIXES = ("Research", "UpgradeTo", "Morph")
+UNIT_COMMAND_PREFIXES = ("Train", "Build", "WarpIn")
 
 NOISE_NAME_PREFIXES = (
     "Beacon",
@@ -32,6 +33,58 @@ WORKER_NAMES = {
     "Drone",
     "Probe",
     "SCV",
+}
+
+UNIT_FOOD_COSTS = {
+    "Adept": 2.0,
+    "Archon": 4.0,
+    "Baneling": 0.5,
+    "Banshee": 3.0,
+    "Battlecruiser": 6.0,
+    "BroodLord": 4.0,
+    "Carrier": 6.0,
+    "Colossus": 6.0,
+    "Corruptor": 2.0,
+    "Cyclone": 3.0,
+    "DarkTemplar": 2.0,
+    "Drone": 1.0,
+    "Ghost": 2.0,
+    "Hellion": 2.0,
+    "HighTemplar": 2.0,
+    "Hydralisk": 2.0,
+    "Immortal": 4.0,
+    "Infestor": 2.0,
+    "Liberator": 3.0,
+    "Marauder": 2.0,
+    "Marine": 1.0,
+    "Medivac": 2.0,
+    "Mutalisk": 2.0,
+    "Observer": 1.0,
+    "Oracle": 3.0,
+    "Overlord": 0.0,
+    "Overseer": 0.0,
+    "Phoenix": 2.0,
+    "Probe": 1.0,
+    "Queen": 2.0,
+    "Ravager": 3.0,
+    "Raven": 2.0,
+    "Reaper": 1.0,
+    "Roach": 2.0,
+    "SCV": 1.0,
+    "Sentry": 2.0,
+    "SiegeTank": 3.0,
+    "Stalker": 2.0,
+    "SwarmHostMP": 3.0,
+    "Tempest": 5.0,
+    "Thor": 6.0,
+    "Ultralisk": 6.0,
+    "VikingFighter": 2.0,
+    "Viper": 3.0,
+    "VoidRay": 4.0,
+    "WarpPrism": 2.0,
+    "WidowMine": 2.0,
+    "Zealot": 2.0,
+    "Zergling": 0.5,
 }
 
 
@@ -120,8 +173,10 @@ def extract_build_order(
     options = options or BuildOrderOptions()
     event_list = list(events)
     supply_timeline = _supply_timeline(event_list, player.pid)
+    has_command_events = any(type(event).__name__.endswith("CommandEvent") for event in event_list)
+    reserved_supply = 0.0
     items: list[BuildOrderItem] = []
-    for event in event_list:
+    for event in sorted(event_list, key=_event_frame):
         event_type = type(event).__name__
         is_command = event_type.endswith("CommandEvent")
         is_type_change = event_type == "UnitTypeChangeEvent" and options.include_type_changes
@@ -136,21 +191,40 @@ def extract_build_order(
 
         frame = _event_frame(event)
         seconds = _event_seconds(event, frame) * options.display_time_scale
+        food_cost = UNIT_FOOD_COSTS.get(name, 0.0)
+        is_worker = name in WORKER_NAMES
+        is_unit_command = is_command and food_cost > 0 and not is_worker
+        if event_type == "UnitBornEvent" and has_command_events and food_cost > 0:
+            if not is_worker:
+                reserved_supply = max(0.0, reserved_supply - food_cost)
+            continue
         if not options.include_starting_state and frame == 0:
+            if is_unit_command:
+                reserved_supply += food_cost
             continue
         if options.max_seconds is not None and seconds > options.max_seconds:
+            if is_unit_command:
+                reserved_supply += food_cost
             continue
         if _is_noise_name(name, options):
+            if is_unit_command:
+                reserved_supply += food_cost
             continue
+
+        supply_used = _supply_at(supply_timeline, frame)
+        if supply_used is not None:
+            supply_used += int(reserved_supply)
 
         items.append(
             BuildOrderItem(
                 frame=frame,
                 seconds=seconds,
                 name=_friendly_name(name),
-                supply_used=_supply_at(supply_timeline, frame),
+                supply_used=supply_used,
             )
         )
+        if is_unit_command:
+            reserved_supply += food_cost
 
     return sorted(items, key=lambda item: (item.frame, item.name))
 
@@ -223,6 +297,11 @@ def _command_name(event: object) -> str | None:
     for prefix in COMMAND_PREFIXES:
         if ability_name.startswith(prefix):
             return ability_name[len(prefix) :]
+    for prefix in UNIT_COMMAND_PREFIXES:
+        if ability_name.startswith(prefix):
+            name = ability_name[len(prefix) :]
+            if name in UNIT_FOOD_COSTS:
+                return name
     return None
 
 
