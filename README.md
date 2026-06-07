@@ -85,7 +85,7 @@ python -m sc2_replay_salt "C:\path\to\game.SC2Replay" --include-type-changes
 To compare decoded unit/building/upgrade state against an SC2ReplayStats replay page, put `SC2REPLAYSTATS_PHPSESSID` in `.env` and pass the replay URL explicitly:
 
 ```powershell
-python -m sc2_replay_salt "C:\path\to\game.SC2Replay" --player 1 --max-minutes 3 --compare-replaystats https://sc2replaystats.com/replay/27328215 --replaystats-team 0
+python -m sc2_replay_salt "C:\path\to\game.SC2Replay" --player 1 --max-minutes 3 --compare-replaystats https://sc2replaystats.com/replay/12345 --replaystats-team 0
 ```
 
 The comparator uses the SC2ReplayStats embedded `units_alive`, `buildings`, and `upgrades` timelines. `--replaystats-team` is zero-based and normally maps to player order on the replay page.
