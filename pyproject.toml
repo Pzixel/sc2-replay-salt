@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sc2-replay-salt"
+version = "0.1.0"
+description = "Decode StarCraft II replays into readable build orders."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "python-dotenv>=1.0",
+    "requests>=2.31",
+    "sc2reader>=1.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+]
+
+[project.scripts]
+sc2-build-order = "sc2_replay_salt.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
