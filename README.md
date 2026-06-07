@@ -35,13 +35,13 @@ Use a real replay path. `C:\path\to\game.SC2Replay` is only a placeholder.
 Analyze one replay:
 
 ```powershell
-python -m sc2_replay_salt "C:\Users\pzixel\Documents\StarCraft II\Accounts\1604600\2-S2-1-1138257\Replays\Multiplayer\Winter Madness LE (13).SC2Replay"
+python -m sc2_replay_salt "C:\Users\pzixel\Documents\StarCraft II\Accounts\12345\7890\Replays\Multiplayer\Winter Madness LE (13).SC2Replay"
 ```
 
 Analyze every replay in a folder:
 
 ```powershell
-python -m sc2_replay_salt "C:\Users\pzixel\Documents\StarCraft II\Accounts\1604600\2-S2-1-1138257\Replays\Multiplayer"
+python -m sc2_replay_salt "C:\Users\pzixel\Documents\StarCraft II\Accounts\12345\7890\Replays\Multiplayer"
 ```
 
 If you installed into `.venv` but did not activate it, use the venv Python explicitly:
