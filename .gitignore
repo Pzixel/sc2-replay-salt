@@ -4,6 +4,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .mypy_cache/
+.tmp_spawningtool/
 *.egg-info/
 dist/
 build/

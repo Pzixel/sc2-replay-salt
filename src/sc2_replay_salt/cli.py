@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 from .build_order import BuildOrderOptions, format_build_order, player_refs, replay_paths, resolve_player
 from .replaystats import compare_reference, fetch_reference, format_comparison
+from .salt import format_salt_encoding
 from .sc2reader_backend import build_order_for_replay, load_replay, replay_players, replay_time_scale
 
 
@@ -23,6 +24,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--include-type-changes", action="store_true", help="Include every unit type-change event.")
     parser.add_argument("--include-workers", action="store_true", help="Include worker production.")
     parser.add_argument("--max-minutes", type=float, help="Only print events up to this game minute.")
+    parser.add_argument("--salt", action="store_true", help="Print SALT encoding instead of a readable build order.")
+    parser.add_argument("--salt-title", help="Title to embed in SALT output. Defaults to the replay file name.")
     parser.add_argument("--compare-replaystats", help="SC2ReplayStats replay URL to compare decoded state against.")
     parser.add_argument("--replaystats-team", type=int, default=0, help="SC2ReplayStats team slot to compare, zero-based.")
     args = parser.parse_args(argv)
@@ -53,7 +56,10 @@ def main(argv: list[str] | None = None) -> int:
             player_selector = args.player or _prompt_for_player(path, args.no_prompt)
             replay, player, items = build_order_for_replay(path, player_selector, options)
             replay_name = str(getattr(replay, "filename", None) or path.name)
-            print(format_build_order(replay_name, player, items))
+            if args.salt:
+                print(format_salt_encoding(items, args.salt_title or Path(replay_name).stem))
+            else:
+                print(format_build_order(replay_name, player, items))
             if args.compare_replaystats:
                 reference = fetch_reference(
                     args.compare_replaystats,

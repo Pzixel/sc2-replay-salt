@@ -71,6 +71,15 @@ python -m sc2_replay_salt "C:\path\to\game.SC2Replay" --player SomeName
 
 If a replay has multiple players and the terminal is interactive, the tool asks which player to analyze. In non-interactive usage it falls back to the first player.
 
+Print a SALT import string instead of the table:
+
+```powershell
+python -m sc2_replay_salt "C:\path\to\game.SC2Replay" --player 2 --salt
+python -m sc2_replay_salt "C:\path\to\game.SC2Replay" --player 2 --salt --salt-title "TvZ Hellion Banshee"
+```
+
+SALT output follows the compact v4 format used by Spawning Tool. It omits workers, keeps only the first three supply providers, keeps only the first ten of any other item, and skips items that cannot fit the single-character SALT supply range.
+
 By default the table omits starting-state units, worker production, temporary spell units, cosmetics, and type-change completion events. Useful flags:
 
 ```powershell
