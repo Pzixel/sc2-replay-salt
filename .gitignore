@@ -5,6 +5,8 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .tmp_spawningtool/
+drop-log.txt
+install-log.txt
 *.egg-info/
 dist/
 build/

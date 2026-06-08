@@ -2,6 +2,16 @@
 
 Decode StarCraft II replay files and print a readable build order for a selected player.
 
+## Easiest Use
+
+For a normal Windows workflow:
+
+1. Double-click `Install once.bat`.
+2. Drag one or more `.SC2Replay` files onto `Drop replays here.bat`.
+3. Open the `build order.txt` file created next to each replay.
+
+The drop script writes both the readable build order and the SALT import string. The first time it sees a replay with multiple players, it asks which player to analyze and remembers that name for future replays. If it cannot ask, it writes one file per player so the user still gets a result. By default it extracts roughly the first 9 minutes, which is usually the useful practice window for a build order.
+
 ## Setup
 
 Recommended:
@@ -69,9 +79,15 @@ python -m sc2_replay_salt "C:\path\to\game.SC2Replay" --player 2
 python -m sc2_replay_salt "C:\path\to\game.SC2Replay" --player SomeName
 ```
 
-If a replay has multiple players and the terminal is interactive, the tool asks which player to analyze. In non-interactive usage it falls back to the first player.
+If a replay has multiple players and the terminal is interactive, the tool asks which player to analyze. The selected player is remembered in your user profile and reused when that player appears in future replays. In non-interactive usage it falls back to the remembered player when possible, otherwise the first player.
 
-Print a SALT import string instead of the table:
+Print the readable table and SALT import string together:
+
+```powershell
+python -m sc2_replay_salt "C:\path\to\game.SC2Replay" --player 2 --both
+```
+
+Print only a SALT import string:
 
 ```powershell
 python -m sc2_replay_salt "C:\path\to\game.SC2Replay" --player 2 --salt
@@ -84,6 +100,7 @@ By default the table omits starting-state units, worker production, temporary sp
 
 ```powershell
 python -m sc2_replay_salt "C:\path\to\game.SC2Replay" --max-minutes 8
+python -m sc2_replay_salt "C:\path\to\game.SC2Replay" --full-game
 python -m sc2_replay_salt "C:\path\to\game.SC2Replay" --include-workers
 python -m sc2_replay_salt "C:\path\to\game.SC2Replay" --include-starting-state
 python -m sc2_replay_salt "C:\path\to\game.SC2Replay" --include-type-changes
