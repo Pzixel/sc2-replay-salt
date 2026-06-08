@@ -2,7 +2,7 @@
 
 Decode StarCraft II replay files and print a readable build order for a selected player.
 
-# Easiest Use
+## Easiest Use
 
 For a normal Windows workflow:
 
@@ -15,9 +15,9 @@ For a normal Windows workflow:
 
 The drop script writes both the readable build order and the SALT import string. It writes one file per player so the user still gets a result. By default it extracts roughly the first 9 minutes, which is usually the useful practice window for a build order.
 
-# Advanced setup
+## Advanced setup
 
-# If you're not using Windows or want to have exact control over what is installed and advanced features (such as specicying if workers should be part of the BO, how long build takes in minutes so shorter/longer builds have precise representation, and so on) then
+### If you're not using Windows or want to have exact control over what is installed and advanced features (such as specicying if workers should be part of the BO, how long build takes in minutes so shorter/longer builds have precise representation, and so on) then
 
 Recommended:
 
@@ -43,20 +43,20 @@ If PowerShell blocks activation scripts, run the venv's Python directly:
 
 Local replay paths and the optional SC2ReplayStats session cookie live in `.env`, which is ignored by git.
 
-# Usage
+## Usage
 
 Use a real replay path. `C:\path\to\game.SC2Replay` is only a placeholder, it should be e.g. `C:\Users\pzixel\Documents\StarCraft II\Accounts\12345\7890\Replays\Multiplayer\Winter Madness LE (13).SC2Replay`
 
 Analyze one replay:
 
 ```powershell
-python -m sc2_replay_salt `C:\path\to\game.SC2Replay
+python -m sc2_replay_salt "C:\path\to\game.SC2Replay"
 ```
 
 Analyze every replay in a folder:
 
 ```powershell
-python -m sc2_replay_salt `C:\path\to\`
+python -m sc2_replay_salt "C:\path\to\"
 ```
 
 If you installed into `.venv` but did not activate it, use the venv Python explicitly:
@@ -111,7 +111,7 @@ python -m sc2_replay_salt "C:\path\to\game.SC2Replay" --include-starting-state
 python -m sc2_replay_salt "C:\path\to\game.SC2Replay" --include-type-changes
 ```
 
-# SC2ReplayStats validation
+## SC2ReplayStats validation
 
 To compare decoded unit/building/upgrade state against an SC2ReplayStats replay page, put `SC2REPLAYSTATS_PHPSESSID` in `.env` and pass the replay URL explicitly:
 
@@ -121,7 +121,7 @@ python -m sc2_replay_salt "C:\path\to\game.SC2Replay" --player 1 --max-minutes 3
 
 The comparator uses the SC2ReplayStats embedded `units_alive`, `buildings`, and `upgrades` timelines. `--replaystats-team` is zero-based and normally maps to player order on the replay page.
 
-# Tests
+## Tests
 
 ```powershell
 python -m pytest
