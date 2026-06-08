@@ -40,18 +40,18 @@ Local replay paths and the optional SC2ReplayStats session cookie live in `.env`
 
 ## Usage
 
-Use a real replay path. `C:\path\to\game.SC2Replay` is only a placeholder.
+Use a real replay path. `C:\path\to\game.SC2Replay` is only a placeholder, it should be e.g. `C:\Users\pzixel\Documents\StarCraft II\Accounts\12345\7890\Replays\Multiplayer\Winter Madness LE (13).SC2Replay`
 
 Analyze one replay:
 
 ```powershell
-python -m sc2_replay_salt "C:\Users\pzixel\Documents\StarCraft II\Accounts\12345\7890\Replays\Multiplayer\Winter Madness LE (13).SC2Replay"
+python -m sc2_replay_salt `C:\path\to\game.SC2Replay
 ```
 
 Analyze every replay in a folder:
 
 ```powershell
-python -m sc2_replay_salt "C:\Users\pzixel\Documents\StarCraft II\Accounts\12345\7890\Replays\Multiplayer"
+python -m sc2_replay_salt `C:\path\to\`
 ```
 
 If you installed into `.venv` but did not activate it, use the venv Python explicitly:
