@@ -10,7 +10,7 @@ For a normal Windows workflow:
 2. Drag one or more `.SC2Replay` files onto `Drop replays here.bat`.
 3. Open the `build order.txt` file created next to each replay.
 
-The drop script writes both the readable build order and the SALT import string. The first time it sees a replay with multiple players, it asks which player to analyze and remembers that name for future replays. If it cannot ask, it writes one file per player so the user still gets a result. By default it extracts roughly the first 9 minutes, which is usually the useful practice window for a build order.
+The drop script writes both the readable build order and the SALT import string. It writes one file per player so the user still gets a result. By default it extracts roughly the first 9 minutes, which is usually the useful practice window for a build order.
 
 ## Setup
 
