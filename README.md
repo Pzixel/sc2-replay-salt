@@ -6,7 +6,7 @@ Decode StarCraft II replay files and print a readable build order for a selected
 
 For a normal Windows workflow:
 
-1. Double-click `Install once.bat`.
+1. Double-click `Install once.bat`. If Python is missing, it downloads and installs Python 3.12 from python.org first.
 2. Drag one or more `.SC2Replay` files onto `Drop replays here.bat`.
 3. Open the `build order.txt` file created next to each replay.
 
