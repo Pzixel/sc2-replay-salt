@@ -54,8 +54,9 @@ exit /b 0
 
 :install_python
 echo Python was not found. Installing Python 3.12...
+echo Downloading Python 3.12 from python.org...
 echo Python was not found. Downloading %PYTHON_URL%>>"%LOG%"
-"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%PYTHON_URL%' -OutFile '%PYTHON_INSTALLER%'" >>"%LOG%" 2>>&1
+call :download_file
 if errorlevel 1 exit /b 1
 
 echo Running the Python installer...>>"%LOG%"
@@ -64,22 +65,43 @@ if errorlevel 1 exit /b 1
 
 if exist "%LocalAppData%\Programs\Python\Python312\python.exe" (
     set "PY=%LocalAppData%\Programs\Python\Python312\python.exe"
+    call :cleanup_python_installer
     exit /b 0
 )
 
 where py >nul 2>nul
 if not errorlevel 1 (
     set "PY=py -3.12"
+    call :cleanup_python_installer
     exit /b 0
 )
 
 where python >nul 2>nul
 if not errorlevel 1 (
     set "PY=python"
+    call :cleanup_python_installer
     exit /b 0
 )
 
 exit /b 1
+
+:download_file
+where curl.exe >nul 2>nul
+if not errorlevel 1 (
+    curl.exe --fail --location --output "%PYTHON_INSTALLER%" "%PYTHON_URL%" >>"%LOG%" 2>>&1
+    exit /b %ERRORLEVEL%
+)
+
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%PYTHON_URL%' -OutFile '%PYTHON_INSTALLER%'" >>"%LOG%" 2>>&1
+exit /b %ERRORLEVEL%
+
+:cleanup_python_installer
+if exist "%PYTHON_INSTALLER%" (
+    echo Cleaning up downloaded Python installer...
+    echo Removing %PYTHON_INSTALLER%>>"%LOG%"
+    del /q "%PYTHON_INSTALLER%" >>"%LOG%" 2>>&1
+)
+exit /b 0
 
 :failed
 echo.
