@@ -8,6 +8,7 @@ For a normal Windows workflow:
 
 0. Download the repo by going into "code -> download ZIP'. Unpack it somewhere
 <img width="906" height="536" alt="image" src="https://github.com/user-attachments/assets/4fca8019-af21-4f84-abd1-b908b9a38eb9" />
+
 1. Double-click `Install once.bat`. If Python is missing, it downloads and installs Python 3.12 from python.org first.
 2. Drag one or more `.SC2Replay` files onto `Drop replays here.bat`.
 3. Open the `build order.txt` file created next to each replay.
