@@ -22,7 +22,9 @@ TRACKED_EVENT_TYPES = {
     "UnitInitEvent": "started",
 }
 
-COMMAND_PREFIXES = ("Research", "UpgradeTo", "Morph")
+UNRESOLVED_NAME = "???"
+
+COMMAND_PREFIXES = ("Research", "UpgradeTo", "Morph", "Upgrades", "Upgrade")
 UNIT_COMMAND_PREFIXES = ("Train", "Build", "WarpIn")
 COMMAND_MANAGER_REPEAT_FRAME_WINDOW = 32
 
@@ -71,7 +73,9 @@ UNIT_FOOD_COSTS = {
     "Marauder": 2.0,
     "Marine": 1.0,
     "Medivac": 2.0,
+    "Mothership": 8.0,
     "Mutalisk": 2.0,
+    "Nuke": 0.0,
     "Observer": 1.0,
     "Oracle": 3.0,
     "Overlord": 0.0,
@@ -91,6 +95,7 @@ UNIT_FOOD_COSTS = {
     "Tempest": 5.0,
     "Thor": 6.0,
     "Ultralisk": 6.0,
+    "Viking": 2.0,
     "VikingFighter": 2.0,
     "Viper": 3.0,
     "VoidRay": 4.0,
@@ -361,13 +366,51 @@ def _command_name(event: object) -> str | None:
 
     for prefix in COMMAND_PREFIXES:
         if ability_name.startswith(prefix):
-            return ability_name[len(prefix) :]
+            return _command_item_name(prefix, ability_name[len(prefix) :])
     for prefix in UNIT_COMMAND_PREFIXES:
         if ability_name.startswith(prefix):
             name = ability_name[len(prefix) :]
             if name in UNIT_FOOD_COSTS:
                 return name
+            if prefix in ("Train", "WarpIn"):
+                return UNRESOLVED_NAME
+    if _is_direct_upgrade_name(ability_name):
+        return ability_name
     return None
+
+
+def _is_direct_upgrade_name(name: str) -> bool:
+    if name == "TerranBuildingArmor":
+        return True
+    return "Level" in name and any(
+        keyword in name for keyword in ("Armor", "Armors", "Plating", "Shields", "Weapons")
+    )
+
+
+def _command_item_name(prefix: str, name: str) -> str:
+    if not name:
+        return UNRESOLVED_NAME
+    if prefix in ("Upgrade", "Upgrades"):
+        return _normalize_upgrade_command_name(name)
+    return name
+
+
+def _normalize_upgrade_command_name(name: str) -> str:
+    normalized = name
+    if normalized[-1:] in {"1", "2", "3"} and "Level" not in normalized:
+        normalized = f"{normalized[:-1]}Level{normalized[-1]}"
+
+    for prefix, replacement in (
+        ("Vehicle", "TerranVehicle"),
+        ("Ship", "TerranShip"),
+        ("StructureArmor", "TerranBuildingArmor"),
+        ("Ground", "ProtossGround"),
+        ("Air", "ProtossAir"),
+        ("Shields", "ProtossShields"),
+    ):
+        if normalized.startswith(prefix):
+            return f"{replacement}{normalized[len(prefix):]}"
+    return normalized
 
 
 def _fallback_ability_name(event: object) -> str | None:
@@ -380,7 +423,9 @@ def _fallback_ability_name(event: object) -> str | None:
         command_index = ability_id & 0x1F
     if ability_link is None or command_index is None:
         return None
-    return _ability_command_lookup().get((ability_link, command_index))
+    return _ability_command_lookup().get((ability_link, command_index)) or _direct_ability_lookup().get(
+        (ability_link, command_index)
+    )
 
 
 @lru_cache(maxsize=1)
@@ -398,6 +443,18 @@ def _ability_command_lookup() -> dict[tuple[int, int], str]:
             lookup_name = group_commands.get(command_index + 1) or command_name
             if lookup_name and lookup_name != group_name:
                 lookup[(ability_link, command_index)] = lookup_name
+    return lookup
+
+
+@lru_cache(maxsize=1)
+def _direct_ability_lookup() -> dict[tuple[int, int], str]:
+    data_path = resources.files("sc2reader").joinpath("data")
+    lookup: dict[tuple[int, int], str] = {}
+    with data_path.joinpath("ability_lookup.csv").open(newline="") as handle:
+        for ability_link, row in enumerate(csv.reader(handle)):
+            for command_index, value in enumerate(row):
+                if value:
+                    lookup[(ability_link, command_index)] = value
     return lookup
 
 
@@ -509,8 +566,10 @@ def _split_camel_case(value: str) -> str:
         previous = value[index - 1]
         current = value[index]
         next_char = value[index + 1] if index + 1 < len(value) else ""
-        starts_word = current.isupper() and (
+        starts_word = (current.isupper() and (
             previous.islower() or previous.isdigit() or (previous.isupper() and next_char.islower())
+        )) or (
+            current.isdigit() and previous.isalpha()
         )
         if starts_word:
             words.append(value[start:index])

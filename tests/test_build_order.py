@@ -164,6 +164,9 @@ def test_extract_build_order_uses_command_events_for_research_and_morphs() -> No
             BasicCommandEvent(160, player, "ResearchStimpack"),
             BasicCommandEvent(320, player, "UpgradeToOrbitalCommand"),
             BasicCommandEvent(480, player, "BuildSupplyDepot"),
+            BasicCommandEvent(640, player, "UpgradeTerranInfantryWeapons1"),
+            BasicCommandEvent(800, player, "UpgradeGroundWeapons2"),
+            BasicCommandEvent(960, player, "UpgradesShields3"),
         ],
         PlayerRef(pid=1, name="Alpha"),
     )
@@ -171,6 +174,9 @@ def test_extract_build_order_uses_command_events_for_research_and_morphs() -> No
     assert [item.format() for item in items] == [
         "  ?   0:10  Stimpack",
         "  ?   0:20  Orbital Command",
+        "  ?   0:40  Terran Infantry Weapons Level 1",
+        "  ?   0:50  Protoss Ground Weapons Level 2",
+        "  ?   1:00  Protoss Shields Level 3",
     ]
 
 
@@ -182,6 +188,8 @@ def test_extract_build_order_uses_unit_commands_and_reserved_supply() -> None:
             PlayerStatsEvent(0, 1, 34),
             BasicCommandEvent(160, player, "BuildHellion"),
             BasicCommandEvent(320, player, "TrainBanshee"),
+            BasicCommandEvent(400, player, "TrainMothership"),
+            BasicCommandEvent(440, player, "TrainNuke"),
             UnitBornEvent(480, 1, "Hellion"),
         ],
         PlayerRef(pid=1, name="Alpha"),
@@ -190,6 +198,8 @@ def test_extract_build_order_uses_unit_commands_and_reserved_supply() -> None:
     assert [item.format() for item in items] == [
         " 34   0:10  Hellion",
         " 36   0:20  Banshee",
+        " 39   0:25  Mothership",
+        " 47   0:27  Nuke",
     ]
 
 
@@ -229,6 +239,22 @@ def test_extract_build_order_uses_distinct_mixed_reactor_commands() -> None:
     assert [item.format() for item in items] == [
         " 27   0:10  Reaper",
         " 27   0:10  Marine",
+    ]
+
+
+def test_extract_build_order_marks_unresolved_unit_commands() -> None:
+    player = FakePlayer(1, "Alpha", "Terran")
+
+    items = extract_build_order(
+        [
+            PlayerStatsEvent(0, 1, 27),
+            BasicCommandEvent(160, player, "TrainDefinitelyUnknown"),
+        ],
+        PlayerRef(pid=1, name="Alpha"),
+    )
+
+    assert [item.format() for item in items] == [
+        " 27   0:10  ???",
     ]
 
 
@@ -303,6 +329,22 @@ def test_extract_build_order_names_unresolved_raven_upgrade_from_ability_tables(
 
     assert [item.format() for item in items] == [
         " 63   0:10  Raven Enhanced Munitions",
+    ]
+
+
+def test_extract_build_order_uses_direct_ability_table_for_newer_upgrade_links() -> None:
+    player = FakePlayer(1, "Alpha", "Terran")
+
+    items = extract_build_order(
+        [
+            PlayerStatsEvent(0, 1, 63),
+            BasicCommandEvent(160, player, "", ability_id=22849, ability_link=714, command_index=1),
+        ],
+        PlayerRef(pid=1, name="Alpha"),
+    )
+
+    assert [item.format() for item in items] == [
+        " 63   0:10  Terran Vehicle Weapons Level 2",
     ]
 
 

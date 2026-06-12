@@ -77,6 +77,7 @@ def test_format_salt_encoding_applies_salt_limits() -> None:
         *[_item(20 + index, 30 + index, "Marine") for index in range(11)],
         _item(99, 400, "Barracks"),
         _item(30, 60, "Not A SALT Thing"),
+        _item(31, 61, "???"),
     ]
 
     encoding = format_salt_encoding(items, "Limits")
