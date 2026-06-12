@@ -43,10 +43,11 @@ class UpgradeCompleteEvent:
 
 
 class BasicCommandEvent:
-    def __init__(self, frame: int, player: FakePlayer, ability_name: str):
+    def __init__(self, frame: int, player: FakePlayer, ability_name: str, repeat: bool = False):
         self.frame = frame
         self.player = player
         self.ability_name = ability_name
+        self.flag = {"repeat": repeat}
 
 
 class PlayerStatsEvent:
@@ -171,6 +172,65 @@ def test_extract_build_order_uses_unit_commands_and_reserved_supply() -> None:
     assert [item.format() for item in items] == [
         " 34   0:10  Hellion",
         " 36   0:20  Banshee",
+    ]
+
+
+def test_extract_build_order_uses_repeated_unit_commands() -> None:
+    player = FakePlayer(1, "Alpha", "Terran")
+
+    items = extract_build_order(
+        [
+            PlayerStatsEvent(0, 1, 27),
+            BasicCommandEvent(160, player, "TrainReaper", repeat=True),
+            UnitBornEvent(480, 1, "Reaper"),
+            UnitBornEvent(480, 1, "Reaper"),
+        ],
+        PlayerRef(pid=1, name="Alpha"),
+    )
+
+    assert [item.format() for item in items] == [
+        " 27   0:10  Reaper",
+        " 27   0:10  Reaper",
+    ]
+
+
+def test_extract_build_order_uses_distinct_mixed_reactor_commands() -> None:
+    player = FakePlayer(1, "Alpha", "Terran")
+
+    items = extract_build_order(
+        [
+            PlayerStatsEvent(0, 1, 27),
+            BasicCommandEvent(160, player, "TrainReaper"),
+            BasicCommandEvent(160, player, "TrainMarine"),
+            UnitBornEvent(480, 1, "Marine"),
+            UnitBornEvent(480, 1, "Reaper"),
+        ],
+        PlayerRef(pid=1, name="Alpha"),
+    )
+
+    assert [item.format() for item in items] == [
+        " 27   0:10  Reaper",
+        " 27   0:10  Marine",
+    ]
+
+
+def test_extract_build_order_does_not_invent_unrelated_same_frame_units() -> None:
+    player = FakePlayer(1, "Alpha", "Terran")
+
+    items = extract_build_order(
+        [
+            PlayerStatsEvent(0, 1, 27),
+            BasicCommandEvent(160, player, "TrainReaper", repeat=True),
+            UnitBornEvent(480, 1, "Reaper"),
+            UnitBornEvent(480, 1, "Reaper"),
+            UnitBornEvent(480, 1, "Hellion"),
+        ],
+        PlayerRef(pid=1, name="Alpha"),
+    )
+
+    assert [item.format() for item in items] == [
+        " 27   0:10  Reaper",
+        " 27   0:10  Reaper",
     ]
 
 

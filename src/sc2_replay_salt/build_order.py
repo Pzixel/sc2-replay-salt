@@ -175,8 +175,16 @@ def extract_build_order(
     supply_timeline = _supply_timeline(event_list, player.pid)
     has_command_events = any(type(event).__name__.endswith("CommandEvent") for event in event_list)
     reserved_supply = 0.0
+    current_frame: int | None = None
+    frame_start_reserved_supply = 0.0
     items: list[BuildOrderItem] = []
+    pending_unit_commands: dict[str, list[BuildOrderItem]] = {}
     for event in sorted(event_list, key=_event_frame):
+        frame = _event_frame(event)
+        if frame != current_frame:
+            current_frame = frame
+            frame_start_reserved_supply = reserved_supply
+
         event_type = type(event).__name__
         is_command = event_type.endswith("CommandEvent")
         is_type_change = event_type == "UnitTypeChangeEvent" and options.include_type_changes
@@ -189,13 +197,17 @@ def extract_build_order(
         if not name:
             continue
 
-        frame = _event_frame(event)
         seconds = _event_seconds(event, frame) * options.display_time_scale
         food_cost = UNIT_FOOD_COSTS.get(name, 0.0)
         is_worker = name in WORKER_NAMES
         is_unit_command = is_command and food_cost > 0 and not is_worker
         if event_type == "UnitBornEvent" and has_command_events and food_cost > 0:
-            if not is_worker:
+            if is_worker:
+                continue
+
+            pending_items = pending_unit_commands.get(name)
+            if pending_items:
+                pending_items.pop(0)
                 reserved_supply = max(0.0, reserved_supply - food_cost)
             continue
         if not options.include_starting_state and frame == 0:
@@ -213,20 +225,24 @@ def extract_build_order(
 
         supply_used = _supply_at(supply_timeline, frame)
         if supply_used is not None:
-            supply_used += int(reserved_supply)
+            supply_used += int(frame_start_reserved_supply)
 
-        items.append(
+        quantity = _command_quantity(event) if is_unit_command else 1
+        command_items = [
             BuildOrderItem(
                 frame=frame,
                 seconds=seconds,
                 name=_friendly_name(name),
                 supply_used=supply_used,
             )
-        )
+            for _ in range(quantity)
+        ]
+        items.extend(command_items)
         if is_unit_command:
+            pending_unit_commands.setdefault(name, []).extend(command_items)
             reserved_supply += food_cost
 
-    return sorted(items, key=lambda item: (item.frame, item.name))
+    return sorted(items, key=lambda item: (item.frame, item.seconds))
 
 
 def format_build_order(replay_name: str, player: PlayerRef, items: Sequence[BuildOrderItem]) -> str:
@@ -235,6 +251,13 @@ def format_build_order(replay_name: str, player: PlayerRef, items: Sequence[Buil
     if not items:
         lines.append("(no build-order events found)")
     return "\n".join(lines)
+
+
+def _command_quantity(event: object) -> int:
+    flags = getattr(event, "flag", None)
+    if isinstance(flags, dict) and flags.get("repeat"):
+        return 2
+    return 1
 
 
 def _event_player_id(event: object) -> int | None:
