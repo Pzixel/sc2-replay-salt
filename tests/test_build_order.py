@@ -43,11 +43,29 @@ class UpgradeCompleteEvent:
 
 
 class BasicCommandEvent:
-    def __init__(self, frame: int, player: FakePlayer, ability_name: str, repeat: bool = False):
+    def __init__(
+        self,
+        frame: int,
+        player: FakePlayer,
+        ability_name: str,
+        repeat: bool = False,
+        ability_id: int | None = None,
+        ability_link: int | None = None,
+        command_index: int | None = None,
+    ):
         self.frame = frame
         self.player = player
         self.ability_name = ability_name
         self.flag = {"repeat": repeat}
+        self.ability_id = ability_id
+        self.ability_link = ability_link
+        self.command_index = command_index
+
+
+class CommandManagerStateEvent:
+    def __init__(self, frame: int, player: FakePlayer):
+        self.frame = frame
+        self.player = player
 
 
 class PlayerStatsEvent:
@@ -231,6 +249,80 @@ def test_extract_build_order_does_not_invent_unrelated_same_frame_units() -> Non
     assert [item.format() for item in items] == [
         " 27   0:10  Reaper",
         " 27   0:10  Reaper",
+    ]
+
+
+def test_extract_build_order_uses_command_manager_repeats_for_unit_commands() -> None:
+    player = FakePlayer(1, "Alpha", "Terran")
+
+    items = extract_build_order(
+        [
+            PlayerStatsEvent(0, 1, 33),
+            BasicCommandEvent(160, player, "TrainMarine"),
+            CommandManagerStateEvent(176, player),
+        ],
+        PlayerRef(pid=1, name="Alpha"),
+    )
+
+    assert [item.format() for item in items] == [
+        " 33   0:10  Marine",
+        " 34   0:11  Marine",
+    ]
+
+
+def test_extract_build_order_names_unresolved_research_commands_from_ability_tables() -> None:
+    player = FakePlayer(1, "Alpha", "Terran")
+
+    items = extract_build_order(
+        [
+            PlayerStatsEvent(0, 1, 37),
+            BasicCommandEvent(160, player, "", ability_link=167, command_index=0),
+            BasicCommandEvent(320, player, "", ability_link=167, command_index=1),
+            BasicCommandEvent(480, player, "", ability_link=168, command_index=6),
+        ],
+        PlayerRef(pid=1, name="Alpha"),
+    )
+
+    assert [item.format() for item in items] == [
+        " 37   0:10  Stimpack",
+        " 37   0:20  Combat Shield",
+        " 37   0:30  Smart Servos",
+    ]
+
+
+def test_extract_build_order_names_unresolved_raven_upgrade_from_ability_tables() -> None:
+    player = FakePlayer(1, "Alpha", "Terran")
+
+    items = extract_build_order(
+        [
+            PlayerStatsEvent(0, 1, 63),
+            BasicCommandEvent(160, player, "", ability_id=5425, ability_link=169, command_index=17),
+        ],
+        PlayerRef(pid=1, name="Alpha"),
+    )
+
+    assert [item.format() for item in items] == [
+        " 63   0:10  Raven Enhanced Munitions",
+    ]
+
+
+def test_extract_build_order_keeps_supply_monotonic_after_unit_completion() -> None:
+    player = FakePlayer(1, "Alpha", "Terran")
+
+    items = extract_build_order(
+        [
+            PlayerStatsEvent(0, 1, 34),
+            BasicCommandEvent(160, player, "BuildHellion"),
+            PlayerStatsEvent(320, 1, 33),
+            UnitBornEvent(320, 1, "Hellion"),
+            UnitInitEvent(336, 1, "FactoryTechLab"),
+        ],
+        PlayerRef(pid=1, name="Alpha"),
+    )
+
+    assert [item.format() for item in items] == [
+        " 34   0:10  Hellion",
+        " 34   0:21  Factory Tech Lab",
     ]
 
 

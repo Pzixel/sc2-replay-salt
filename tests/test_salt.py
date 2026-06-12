@@ -85,3 +85,15 @@ def test_format_salt_encoding_applies_salt_limits() -> None:
     assert encoding.startswith("$Limits~")
     assert len(payload) == 13 * 5
     assert payload.count(" /") == 3
+
+
+def test_format_salt_encoding_includes_interference_matrix() -> None:
+    encoding = format_salt_encoding([_item(63, 257, "Interference Matrix")], "Raven")
+
+    assert encoding == "$Raven~[$0#,"
+
+
+def test_format_salt_encoding_includes_raven_enhanced_munitions() -> None:
+    encoding = format_salt_encoding([_item(63, 257, "Raven Enhanced Munitions")], "Raven")
+
+    assert encoding == "$Raven~[$0#,"

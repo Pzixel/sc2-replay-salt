@@ -145,6 +145,8 @@ SALT_UPGRADES = {
     "Infernal Pre Igniter": 10,
     "Infernal Pre-Igniter": 10,
     "Stimpack": 11,
+    "Raven Enhanced Munitions": 12,
+    "Interference Matrix": 12,
     "Seeker Missile": 12,
     "Siege Tech": 13,
     "Neosteel Frame": 14,

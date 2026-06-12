@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import csv
 from dataclasses import dataclass
+from functools import lru_cache
+from importlib import resources
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -21,6 +24,7 @@ TRACKED_EVENT_TYPES = {
 
 COMMAND_PREFIXES = ("Research", "UpgradeTo", "Morph")
 UNIT_COMMAND_PREFIXES = ("Train", "Build", "WarpIn")
+COMMAND_MANAGER_REPEAT_FRAME_WINDOW = 32
 
 NOISE_NAME_PREFIXES = (
     "Beacon",
@@ -186,6 +190,10 @@ def extract_build_order(
     reserved_supply = 0.0
     current_frame: int | None = None
     frame_start_reserved_supply = 0.0
+    last_supply_used: int | None = None
+    last_repeatable_unit_command: BuildOrderItem | None = None
+    last_repeatable_unit_command_frame: int | None = None
+    ignore_manager_repeat = False
     items: list[BuildOrderItem] = []
     pending_unit_commands: dict[str, list[BuildOrderItem]] = {}
     for event in sorted(event_list, key=event_frame):
@@ -196,10 +204,41 @@ def extract_build_order(
 
         event_type = type(event).__name__
         is_command = event_type.endswith("CommandEvent")
+        is_command_manager_state = event_type == "CommandManagerStateEvent"
         is_type_change = event_type == "UnitTypeChangeEvent" and options.include_type_changes
-        if event_type not in TRACKED_EVENT_TYPES and not is_command and not is_type_change:
+        if event_type not in TRACKED_EVENT_TYPES and not is_command and not is_type_change and not is_command_manager_state:
             continue
         if event_player_id(event) != player.pid:
+            continue
+
+        if is_command_manager_state:
+            if (
+                last_repeatable_unit_command is None
+                or last_repeatable_unit_command_frame is None
+                or ignore_manager_repeat
+                or frame - last_repeatable_unit_command_frame > COMMAND_MANAGER_REPEAT_FRAME_WINDOW
+            ):
+                continue
+
+            supply_used = _supply_at(supply_timeline, frame)
+            if supply_used is not None:
+                supply_used += int(frame_start_reserved_supply)
+                supply_used = _monotonic_supply(supply_used, last_supply_used)
+
+            item = BuildOrderItem(
+                frame=frame,
+                seconds=event_seconds(event, frame, options.display_time_scale),
+                name=last_repeatable_unit_command.name,
+                supply_used=supply_used,
+            )
+            items.append(item)
+            pending_unit_commands.setdefault(_compact_name(item.name), []).append(item)
+            food_cost = UNIT_FOOD_COSTS.get(_compact_name(item.name), 0.0)
+            reserved_supply += food_cost
+            last_supply_used = item.supply_used
+            last_repeatable_unit_command = item
+            last_repeatable_unit_command_frame = frame
+            ignore_manager_repeat = True
             continue
 
         name = _command_name(event) if is_command else _event_name(event)
@@ -222,11 +261,15 @@ def extract_build_order(
         if _should_skip_item(name, frame, seconds, options):
             if is_unit_command:
                 reserved_supply += food_cost
+                last_repeatable_unit_command = None
+                last_repeatable_unit_command_frame = None
+                ignore_manager_repeat = False
             continue
 
         supply_used = _supply_at(supply_timeline, frame)
         if supply_used is not None:
             supply_used += int(frame_start_reserved_supply)
+            supply_used = _monotonic_supply(supply_used, last_supply_used)
 
         quantity = _command_quantity(event) if is_unit_command else 1
         command_items = [
@@ -242,6 +285,16 @@ def extract_build_order(
         if is_unit_command:
             pending_unit_commands.setdefault(name, []).extend(command_items)
             reserved_supply += food_cost
+            last_repeatable_unit_command = command_items[-1]
+            last_repeatable_unit_command_frame = frame
+            ignore_manager_repeat = quantity > 1
+        elif is_command:
+            last_repeatable_unit_command = None
+            last_repeatable_unit_command_frame = None
+            ignore_manager_repeat = False
+
+        if command_items:
+            last_supply_used = command_items[-1].supply_used
 
     return sorted(items, key=lambda item: (item.frame, item.seconds))
 
@@ -259,6 +312,16 @@ def _command_quantity(event: object) -> int:
     if isinstance(flags, dict) and flags.get("repeat"):
         return 2
     return 1
+
+
+def _monotonic_supply(supply_used: int | None, last_supply_used: int | None) -> int | None:
+    if supply_used is None or last_supply_used is None:
+        return supply_used
+    return max(supply_used, last_supply_used)
+
+
+def _compact_name(name: str) -> str:
+    return "".join(name.split())
 
 
 def _event_name(event: object) -> str | None:
@@ -292,6 +355,8 @@ def _event_name(event: object) -> str | None:
 def _command_name(event: object) -> str | None:
     ability_name = str_or_none(getattr(event, "ability_name", None))
     if not ability_name:
+        ability_name = _fallback_ability_name(event)
+    if not ability_name:
         return None
 
     for prefix in COMMAND_PREFIXES:
@@ -303,6 +368,68 @@ def _command_name(event: object) -> str | None:
             if name in UNIT_FOOD_COSTS:
                 return name
     return None
+
+
+def _fallback_ability_name(event: object) -> str | None:
+    ability_id = int_or_none(getattr(event, "ability_id", None))
+    ability_link = int_or_none(getattr(event, "ability_link", None))
+    command_index = int_or_none(getattr(event, "command_index", None))
+    if ability_link is None and ability_id is not None:
+        ability_link = ability_id >> 5
+    if command_index is None and ability_id is not None:
+        command_index = ability_id & 0x1F
+    if ability_link is None or command_index is None:
+        return None
+    return _ability_command_lookup().get((ability_link, command_index))
+
+
+@lru_cache(maxsize=1)
+def _ability_command_lookup() -> dict[tuple[int, int], str]:
+    data_path = resources.files("sc2reader").joinpath("data")
+    command_by_group_and_index = _command_by_group_and_index(data_path.joinpath("ability_lookup.csv"))
+    group_by_link = _latest_ability_group_by_link(data_path.joinpath("LotV"))
+    lookup: dict[tuple[int, int], str] = {}
+    for ability_link, group_name in group_by_link.items():
+        group_commands = command_by_group_and_index.get(group_name, {})
+        for command_index in range(32):
+            command_name = group_commands.get(command_index)
+            if command_name == group_name:
+                command_name = None
+            lookup_name = group_commands.get(command_index + 1) or command_name
+            if lookup_name and lookup_name != group_name:
+                lookup[(ability_link, command_index)] = lookup_name
+    return lookup
+
+
+def _command_by_group_and_index(path: object) -> dict[str, dict[int, str]]:
+    result: dict[str, dict[int, str]] = {}
+    with path.open(newline="") as handle:
+        for row in csv.reader(handle):
+            if not row:
+                continue
+            result[row[0]] = {index: value for index, value in enumerate(row) if value}
+    return result
+
+
+def _latest_ability_group_by_link(directory: object) -> dict[int, str]:
+    latest_build_by_link: dict[int, int] = {}
+    group_by_link: dict[int, str] = {}
+    for path in directory.iterdir():
+        if not path.name.endswith("_abilities.csv"):
+            continue
+        build_text = path.name.split("_", 1)[0]
+        if not build_text.isdigit():
+            continue
+        build = int(build_text)
+        with path.open(newline="") as handle:
+            for row in csv.reader(handle):
+                if len(row) < 2 or not row[0].isdigit() or not row[1]:
+                    continue
+                ability_link = int(row[0])
+                if build >= latest_build_by_link.get(ability_link, -1):
+                    latest_build_by_link[ability_link] = build
+                    group_by_link[ability_link] = row[1]
+    return group_by_link
 
 
 def _is_noise_name(name: str, options: BuildOrderOptions) -> bool:
