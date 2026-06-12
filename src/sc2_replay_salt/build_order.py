@@ -4,6 +4,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
 
+from .event_helpers import (
+    event_frame,
+    event_player_id,
+    event_seconds,
+    int_or_none,
+    str_or_none,
+    unit_name_at_frame,
+)
+
 
 TRACKED_EVENT_TYPES = {
     "UnitBornEvent": "born",
@@ -138,12 +147,12 @@ def replay_paths(path: Path) -> list[Path]:
 def player_refs(players: Sequence[object]) -> list[PlayerRef]:
     refs: list[PlayerRef] = []
     for index, player in enumerate(players, start=1):
-        pid = _int_or_none(getattr(player, "pid", None))
+        pid = int_or_none(getattr(player, "pid", None))
         refs.append(
             PlayerRef(
                 pid=pid if pid is not None else index,
                 name=str(getattr(player, "name", f"Player {index}")),
-                race=_str_or_none(getattr(player, "play_race", None) or getattr(player, "race", None)),
+                race=str_or_none(getattr(player, "play_race", None) or getattr(player, "race", None)),
             )
         )
     return refs
@@ -179,8 +188,8 @@ def extract_build_order(
     frame_start_reserved_supply = 0.0
     items: list[BuildOrderItem] = []
     pending_unit_commands: dict[str, list[BuildOrderItem]] = {}
-    for event in sorted(event_list, key=_event_frame):
-        frame = _event_frame(event)
+    for event in sorted(event_list, key=event_frame):
+        frame = event_frame(event)
         if frame != current_frame:
             current_frame = frame
             frame_start_reserved_supply = reserved_supply
@@ -190,14 +199,14 @@ def extract_build_order(
         is_type_change = event_type == "UnitTypeChangeEvent" and options.include_type_changes
         if event_type not in TRACKED_EVENT_TYPES and not is_command and not is_type_change:
             continue
-        if _event_player_id(event) != player.pid:
+        if event_player_id(event) != player.pid:
             continue
 
         name = _command_name(event) if is_command else _event_name(event)
         if not name:
             continue
 
-        seconds = _event_seconds(event, frame) * options.display_time_scale
+        seconds = event_seconds(event, frame, options.display_time_scale)
         food_cost = UNIT_FOOD_COSTS.get(name, 0.0)
         is_worker = name in WORKER_NAMES
         is_unit_command = is_command and food_cost > 0 and not is_worker
@@ -210,15 +219,7 @@ def extract_build_order(
                 pending_items.pop(0)
                 reserved_supply = max(0.0, reserved_supply - food_cost)
             continue
-        if not options.include_starting_state and frame == 0:
-            if is_unit_command:
-                reserved_supply += food_cost
-            continue
-        if options.max_seconds is not None and seconds > options.max_seconds:
-            if is_unit_command:
-                reserved_supply += food_cost
-            continue
-        if _is_noise_name(name, options):
+        if _should_skip_item(name, frame, seconds, options):
             if is_unit_command:
                 reserved_supply += food_cost
             continue
@@ -260,60 +261,36 @@ def _command_quantity(event: object) -> int:
     return 1
 
 
-def _event_player_id(event: object) -> int | None:
-    event_player = getattr(event, "player", None)
-    value = _int_or_none(getattr(event_player, "pid", None))
-    if value is not None:
-        return value
-
-    for attr in ("control_pid", "upkeep_pid", "pid"):
-        value = _int_or_none(getattr(event, attr, None))
-        if value is not None:
-            return value
-
-    for owner_attr in ("unit_controller", "unit_upkeeper", "unit"):
-        owner = getattr(event, owner_attr, None)
-        value = _int_or_none(getattr(owner, "pid", None))
-        if value is not None:
-            return value
-        nested_owner = getattr(owner, "owner", None)
-        value = _int_or_none(getattr(nested_owner, "pid", None))
-        if value is not None:
-            return value
-
-    return None
-
-
 def _event_name(event: object) -> str | None:
     for attr in ("unit_type_name", "upgrade_type_name"):
-        value = _str_or_none(getattr(event, attr, None))
+        value = str_or_none(getattr(event, attr, None))
         if value:
             return value
 
     unit = getattr(event, "unit", None)
     if unit is not None:
-        value = _unit_name_at_frame(unit, _event_frame(event))
+        value = unit_name_at_frame(unit, event_frame(event))
         if value:
             return value
         for attr in ("name", "type_name", "unit_type_name"):
-            value = _str_or_none(getattr(unit, attr, None))
+            value = str_or_none(getattr(unit, attr, None))
             if value:
                 return value
         unit_type = getattr(unit, "type", None)
-        value = _str_or_none(getattr(unit_type, "name", None))
+        value = str_or_none(getattr(unit_type, "name", None))
         if value:
             return value
 
-    value = _str_or_none(getattr(event, "name", None))
+    value = str_or_none(getattr(event, "name", None))
     if value:
         return value
 
     upgrade = getattr(event, "upgrade_type", None)
-    return _str_or_none(getattr(upgrade, "name", None))
+    return str_or_none(getattr(upgrade, "name", None))
 
 
 def _command_name(event: object) -> str | None:
-    ability_name = _str_or_none(getattr(event, "ability_name", None))
+    ability_name = str_or_none(getattr(event, "ability_name", None))
     if not ability_name:
         return None
 
@@ -334,32 +311,12 @@ def _is_noise_name(name: str, options: BuildOrderOptions) -> bool:
     return not options.include_workers and name in WORKER_NAMES
 
 
-def _unit_name_at_frame(unit: object, frame: int) -> str | None:
-    type_history = getattr(unit, "type_history", None)
-    if not type_history:
-        return None
-
-    current_name: str | None = None
-    for type_frame, unit_type in type_history.items():
-        if type_frame > frame:
-            break
-        current_name = _str_or_none(getattr(unit_type, "name", None))
-    return current_name
-
-
-def _event_frame(event: object) -> int:
-    value = _int_or_none(getattr(event, "frame", None))
-    if value is not None:
-        return value
-    value = _int_or_none(getattr(event, "frames", None))
-    return value if value is not None else 0
-
-
-def _event_seconds(event: object, frame: int) -> float:
-    value = getattr(event, "second", None)
-    if isinstance(value, (int, float)):
-        return float(value)
-    return frame / 16
+def _should_skip_item(name: str, frame: int, seconds: float, options: BuildOrderOptions) -> bool:
+    if not options.include_starting_state and frame == 0:
+        return True
+    if options.max_seconds is not None and seconds > options.max_seconds:
+        return True
+    return _is_noise_name(name, options)
 
 
 def _supply_timeline(events: Sequence[object], pid: int) -> list[tuple[int, int]]:
@@ -367,11 +324,11 @@ def _supply_timeline(events: Sequence[object], pid: int) -> list[tuple[int, int]
     for event in events:
         if type(event).__name__ != "PlayerStatsEvent":
             continue
-        if _int_or_none(getattr(event, "pid", None)) != pid:
+        if int_or_none(getattr(event, "pid", None)) != pid:
             continue
         food_used = getattr(event, "food_used", None)
         if isinstance(food_used, (int, float)):
-            timeline.append((_event_frame(event), int(food_used)))
+            timeline.append((event_frame(event), int(food_used)))
     return sorted(timeline)
 
 
@@ -433,20 +390,3 @@ def _split_camel_case(value: str) -> str:
             start = index
     words.append(value[start:])
     return " ".join(words)
-
-
-def _int_or_none(value: object) -> int | None:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int):
-        return value
-    if isinstance(value, str) and value.isdigit():
-        return int(value)
-    return None
-
-
-def _str_or_none(value: object) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text or None

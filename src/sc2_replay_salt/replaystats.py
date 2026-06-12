@@ -9,6 +9,13 @@ from typing import Mapping, Sequence
 import requests
 
 from .build_order import PlayerRef
+from .event_helpers import (
+    event_frame,
+    event_player_id,
+    event_seconds,
+    unit_id,
+    unit_name_at_frame,
+)
 
 IGNORED_UPGRADE_PREFIXES = ("rewarddance", "spray")
 IGNORED_UPGRADES = {"ghostalternate"}
@@ -69,7 +76,7 @@ def compare_reference(
 ) -> ComparisonResult:
     reference_keys = _reference_keys(reference, team_index)
     local_state = _LocalState(reference_keys)
-    sorted_events = sorted(events, key=lambda event: _event_seconds(event, time_scale))
+    sorted_events = sorted(events, key=lambda event: event_seconds(event, time_scale=time_scale))
     differences: list[SampleDifference] = []
     event_index = 0
     checked_samples = 0
@@ -78,7 +85,7 @@ def compare_reference(
         if max_seconds is not None and seconds > max_seconds:
             break
 
-        while event_index < len(sorted_events) and _event_seconds(sorted_events[event_index], time_scale) <= seconds:
+        while event_index < len(sorted_events) and event_seconds(sorted_events[event_index], time_scale=time_scale) <= seconds:
             local_state.apply(sorted_events[event_index], player.pid)
             event_index += 1
 
@@ -190,54 +197,54 @@ class _LocalState:
             self._change_unit(event, player_id)
         elif event_type == "UnitDiedEvent":
             self._remove_unit(event, player_id)
-        elif event_type == "UpgradeCompleteEvent" and _event_player_id(event) == player_id:
+        elif event_type == "UpgradeCompleteEvent" and event_player_id(event) == player_id:
             name = _normalize_name(getattr(event, "upgrade_type_name", ""))
             if not _is_ignored_upgrade(name):
                 self._increment("upgrades", name)
 
     def _add_unit(self, event: object, player_id: int) -> None:
-        if _event_player_id(event) != player_id:
+        if event_player_id(event) != player_id:
             return
         name = _normalize_name(_event_name(event))
         if not name:
             return
         bucket = self._bucket_for(name)
-        unit_id = _unit_id(event)
-        if bucket is None and unit_id is not None:
-            pending = self.pending_units_by_id.pop(unit_id, None)
+        event_unit_id = unit_id(event)
+        if bucket is None and event_unit_id is not None:
+            pending = self.pending_units_by_id.pop(event_unit_id, None)
             if pending is not None:
                 bucket, name = pending
         if bucket is None:
             return
-        if unit_id is not None and unit_id in self.units_by_id:
-            old_bucket, old_name = self.units_by_id[unit_id]
+        if event_unit_id is not None and event_unit_id in self.units_by_id:
+            old_bucket, old_name = self.units_by_id[event_unit_id]
             if self.counts[old_bucket].get(old_name, 0) == 0 and (
                 name == old_name or self.counts[bucket].get(name, 0) > 0
             ):
-                self.units_by_id[unit_id] = (bucket, name)
+                self.units_by_id[event_unit_id] = (bucket, name)
                 return
-        if unit_id is not None:
-            self.units_by_id[unit_id] = (bucket, name)
+        if event_unit_id is not None:
+            self.units_by_id[event_unit_id] = (bucket, name)
         self._increment(bucket, name)
 
     def _remember_pending_unit(self, event: object, player_id: int) -> None:
-        if _event_player_id(event) != player_id:
+        if event_player_id(event) != player_id:
             return
-        unit_id = _unit_id(event)
-        if unit_id is None:
+        event_unit_id = unit_id(event)
+        if event_unit_id is None:
             return
         name = _normalize_name(_event_name(event))
         bucket = self._bucket_for(name)
         if bucket is not None:
-            self.pending_units_by_id[unit_id] = (bucket, name)
+            self.pending_units_by_id[event_unit_id] = (bucket, name)
 
     def _change_unit(self, event: object, player_id: int) -> None:
-        if _event_player_id(event) != player_id:
+        if event_player_id(event) != player_id:
             return
-        unit_id = _unit_id(event)
+        event_unit_id = unit_id(event)
         old_had_count = False
-        if unit_id is not None and unit_id in self.units_by_id:
-            old_bucket, old_name = self.units_by_id[unit_id]
+        if event_unit_id is not None and event_unit_id in self.units_by_id:
+            old_bucket, old_name = self.units_by_id[event_unit_id]
             old_had_count = self.counts[old_bucket].get(old_name, 0) > 0
             self._decrement(old_bucket, old_name)
 
@@ -245,17 +252,17 @@ class _LocalState:
         bucket = self._bucket_for(name)
         if bucket is None:
             return
-        if unit_id is not None:
-            self.units_by_id[unit_id] = (bucket, name)
+        if event_unit_id is not None:
+            self.units_by_id[event_unit_id] = (bucket, name)
         if not old_had_count and self.counts[bucket].get(name, 0) > 0:
             return
         self._increment(bucket, name)
 
     def _remove_unit(self, event: object, player_id: int) -> None:
-        unit_id = _unit_id(event)
-        if unit_id is not None:
-            self.pending_units_by_id.pop(unit_id, None)
-        tracked = self.units_by_id.pop(unit_id, None) if unit_id is not None else None
+        event_unit_id = unit_id(event)
+        if event_unit_id is not None:
+            self.pending_units_by_id.pop(event_unit_id, None)
+        tracked = self.units_by_id.pop(event_unit_id, None) if event_unit_id is not None else None
         if tracked is None:
             return
         bucket, name = tracked
@@ -279,22 +286,6 @@ class _LocalState:
             self.counts[bucket][name] = current - 1
 
 
-def _event_player_id(event: object) -> int | None:
-    event_player = getattr(event, "player", None)
-    value = _int_or_none(getattr(event_player, "pid", None))
-    if value is not None:
-        return value
-
-    for attr in ("control_pid", "upkeep_pid", "pid"):
-        value = _int_or_none(getattr(event, attr, None))
-        if value is not None:
-            return value
-
-    unit = getattr(event, "unit", None)
-    owner = getattr(unit, "owner", None)
-    return _int_or_none(getattr(owner, "pid", None))
-
-
 def _event_name(event: object) -> str:
     for attr in ("unit_type_name", "upgrade_type_name"):
         value = getattr(event, attr, None)
@@ -302,7 +293,7 @@ def _event_name(event: object) -> str:
             return str(value)
     unit = getattr(event, "unit", None)
     if type(event).__name__ != "UnitDoneEvent":
-        value = _unit_name_at_event_frame(unit, event)
+        value = unit_name_at_frame(unit, event_frame(event))
         if value:
             return value
     for attr in ("name", "type_name", "unit_type_name"):
@@ -315,38 +306,6 @@ def _event_name(event: object) -> str:
     return ""
 
 
-def _unit_id(event: object) -> int | None:
-    value = _int_or_none(getattr(event, "unit_id", None))
-    if value is not None:
-        return value
-    unit = getattr(event, "unit", None)
-    return _int_or_none(getattr(unit, "id", None))
-
-
-def _unit_name_at_event_frame(unit: object, event: object) -> str | None:
-    type_history = getattr(unit, "type_history", None)
-    if not type_history:
-        return None
-
-    frame = _int_or_none(getattr(event, "frame", None)) or 0
-    current_name: str | None = None
-    for type_frame, unit_type in type_history.items():
-        if type_frame > frame:
-            break
-        name = getattr(unit_type, "name", None)
-        if name:
-            current_name = str(name)
-    return current_name
-
-
-def _event_seconds(event: object, time_scale: float) -> float:
-    value = getattr(event, "second", None)
-    if isinstance(value, (int, float)):
-        return float(value) * time_scale
-    frame = _int_or_none(getattr(event, "frame", None)) or 0
-    return frame / 16 * time_scale
-
-
 def _normalize_name(value: object) -> str:
     normalized = str(value).lower()
     for suffix in ("lowered", "flying"):
@@ -357,16 +316,6 @@ def _normalize_name(value: object) -> str:
 
 def _is_ignored_upgrade(name: str) -> bool:
     return name in IGNORED_UPGRADES or any(name.startswith(prefix) for prefix in IGNORED_UPGRADE_PREFIXES)
-
-
-def _int_or_none(value: object) -> int | None:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int):
-        return value
-    if isinstance(value, str) and value.isdigit():
-        return int(value)
-    return None
 
 
 def _time_label(seconds: int) -> str:
