@@ -296,6 +296,23 @@ def test_extract_build_order_uses_command_manager_repeats_for_unit_commands() ->
     ]
 
 
+def test_extract_build_order_ignores_command_manager_repeats_for_non_reactor_units() -> None:
+    player = FakePlayer(1, "Alpha", "Terran")
+
+    items = extract_build_order(
+        [
+            PlayerStatsEvent(0, 1, 47),
+            BasicCommandEvent(160, player, "BuildSiegeTank"),
+            CommandManagerStateEvent(176, player),
+        ],
+        PlayerRef(pid=1, name="Alpha"),
+    )
+
+    assert [item.format() for item in items] == [
+        " 47   0:10  Siege Tank",
+    ]
+
+
 def test_extract_build_order_names_unresolved_research_commands_from_ability_tables() -> None:
     player = FakePlayer(1, "Alpha", "Terran")
 

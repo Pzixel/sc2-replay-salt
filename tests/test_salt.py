@@ -98,3 +98,9 @@ def test_format_salt_encoding_includes_raven_enhanced_munitions() -> None:
     encoding = format_salt_encoding([_item(63, 257, "Raven Enhanced Munitions")], "Raven")
 
     assert encoding == "$Raven~[$0#,"
+
+
+def test_format_salt_encoding_includes_cyclone() -> None:
+    encoding = format_salt_encoding([_item(36, 207, "Cyclone")], "Cyclone")
+
+    assert encoding == "$Cyclone~@#:!K"

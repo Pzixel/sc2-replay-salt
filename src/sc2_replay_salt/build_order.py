@@ -27,6 +27,17 @@ UNRESOLVED_NAME = "???"
 COMMAND_PREFIXES = ("Research", "UpgradeTo", "Morph", "Upgrades", "Upgrade")
 UNIT_COMMAND_PREFIXES = ("Train", "Build", "WarpIn")
 COMMAND_MANAGER_REPEAT_FRAME_WINDOW = 32
+REACTOR_UNIT_NAMES = {
+    "Hellion",
+    "Liberator",
+    "Marauder",
+    "Marine",
+    "Medivac",
+    "Reaper",
+    "Viking",
+    "VikingFighter",
+    "WidowMine",
+}
 
 NOISE_NAME_PREFIXES = (
     "Beacon",
@@ -221,6 +232,7 @@ def extract_build_order(
                 last_repeatable_unit_command is None
                 or last_repeatable_unit_command_frame is None
                 or ignore_manager_repeat
+                or _compact_name(last_repeatable_unit_command.name) not in REACTOR_UNIT_NAMES
                 or frame - last_repeatable_unit_command_frame > COMMAND_MANAGER_REPEAT_FRAME_WINDOW
             ):
                 continue

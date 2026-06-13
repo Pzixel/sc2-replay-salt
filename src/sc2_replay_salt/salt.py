@@ -107,6 +107,7 @@ SALT_UNITS = {
     "Battle Hellion": 40,
     "Hellbat": 40,
     "Widow Mine": 42,
+    "Cyclone": 43,
     "Oracle": 44,
     "Tempest": 45,
     "Swarm Host": 46,
