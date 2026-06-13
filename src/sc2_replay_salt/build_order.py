@@ -526,24 +526,24 @@ def _supply_at(timeline: Sequence[tuple[int, int]], frame: int) -> int | None:
 
 
 def _format_grouped_items(items: Sequence[BuildOrderItem]) -> list[str]:
-    grouped: dict[tuple[int | None, int], list[str]] = {}
+    collapsed: dict[tuple[int, str], tuple[int | None, int, str, int]] = {}
     for item in items:
-        grouped.setdefault((item.supply_used, int(item.seconds)), []).append(item.name)
+        seconds = int(item.seconds)
+        key = (seconds, item.name)
+        supply, _, name, count = collapsed.get(key, (item.supply_used, seconds, item.name, 0))
+        collapsed[key] = (supply, seconds, name, count + 1)
+
+    grouped: dict[tuple[int | None, int], list[str]] = {}
+    for supply, seconds, name, count in collapsed.values():
+        label = f"{name} x{count}" if count > 1 else name
+        grouped.setdefault((supply, seconds), []).append(label)
 
     lines: list[str] = []
     for (supply, seconds), names in grouped.items():
         supply_label = str(supply) if supply is not None else "?"
         minutes, second = divmod(seconds, 60)
-        lines.append(f"{supply_label:>3}\t{minutes}:{second:02d}\t{_summarize_names(names)}")
+        lines.append(f"{supply_label:>3}\t{minutes}:{second:02d}\t{', '.join(names)}")
     return lines
-
-
-def _summarize_names(names: Sequence[str]) -> str:
-    parts: list[str] = []
-    for name in dict.fromkeys(names):
-        count = names.count(name)
-        parts.append(f"{name} x{count}" if count > 1 else name)
-    return ", ".join(parts)
 
 
 def _friendly_name(name: str) -> str:

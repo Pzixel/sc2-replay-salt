@@ -394,6 +394,22 @@ def test_format_build_order_groups_duplicate_items() -> None:
     assert " 19\t0:10\tMarine x2, Stimpack" in text
 
 
+def test_format_build_order_groups_same_second_duplicates_with_different_supply() -> None:
+    text = format_build_order(
+        "game.SC2Replay",
+        PlayerRef(pid=1, name="Alpha"),
+        [
+            BuildOrderItem(frame=160, seconds=10, name="Medivac", supply_used=193),
+            BuildOrderItem(frame=164, seconds=10, name="Medivac", supply_used=195),
+            BuildOrderItem(frame=200, seconds=12, name="Widow Mine", supply_used=201),
+            BuildOrderItem(frame=204, seconds=12, name="Widow Mine", supply_used=203),
+        ],
+    )
+
+    assert "193\t0:10\tMedivac x2" in text
+    assert "201\t0:12\tWidow Mine x2" in text
+
+
 def test_replay_paths_returns_sorted_sc2_replays(tmp_path) -> None:
     second = tmp_path / "b.SC2Replay"
     first = tmp_path / "a.SC2Replay"
