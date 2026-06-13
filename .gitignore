@@ -3,6 +3,7 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.test-tmp/
 .mypy_cache/
 .tmp_spawningtool/
 drop-log.txt

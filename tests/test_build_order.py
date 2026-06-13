@@ -403,12 +403,14 @@ def test_format_build_order_groups_same_second_duplicates_with_different_supply(
             BuildOrderItem(frame=164, seconds=10, name="Medivac", supply_used=195),
             BuildOrderItem(frame=200, seconds=12, name="Widow Mine", supply_used=201),
             BuildOrderItem(frame=204, seconds=12, name="Widow Mine", supply_used=203),
+            BuildOrderItem(frame=205, seconds=12, name="Stimpack", supply_used=205),
+            BuildOrderItem(frame=206, seconds=12, name="Combat Shield", supply_used=205),
         ],
     )
 
     assert "193\t0:10\tMedivac x2" in text
     assert "201\t0:12\tWidow Mine x2" in text
-
+    
 
 def test_replay_paths_returns_sorted_sc2_replays(tmp_path) -> None:
     second = tmp_path / "b.SC2Replay"
