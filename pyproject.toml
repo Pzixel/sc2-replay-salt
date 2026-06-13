@@ -24,3 +24,6 @@ sc2-build-order = "sc2_replay_salt.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-p no:cacheprovider"
