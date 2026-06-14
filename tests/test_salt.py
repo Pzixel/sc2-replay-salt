@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
 from sc2_replay_salt.build_order import BuildOrderItem
-from sc2_replay_salt.salt import format_salt_encoding
+from sc2_replay_salt.salt import SaltEncodingError, format_salt_encoding
 
 
 def _item(supply: int, seconds: int, name: str) -> BuildOrderItem:
@@ -76,8 +78,7 @@ def test_format_salt_encoding_applies_salt_limits() -> None:
         _item(41, 226, "Supply Depot"),
         *[_item(20 + index, 30 + index, "Marine") for index in range(11)],
         _item(99, 400, "Barracks"),
-        _item(30, 60, "Not A SALT Thing"),
-        _item(31, 61, "???"),
+        _item(99, 60, "Not A SALT Thing"),
     ]
 
     encoding = format_salt_encoding(items, "Limits")
@@ -86,6 +87,20 @@ def test_format_salt_encoding_applies_salt_limits() -> None:
     assert encoding.startswith("$Limits~")
     assert len(payload) == 13 * 5
     assert payload.count(" /") == 3
+
+
+def test_format_salt_encoding_errors_on_unmapped_eligible_items() -> None:
+    with pytest.raises(SaltEncodingError) as exc_info:
+        format_salt_encoding([_item(30, 60, "Not A SALT Thing")], "Broken", source="broken.SC2Replay; player=1: Alpha")
+
+    message = str(exc_info.value)
+    assert "Not A SALT Thing" in message
+    assert "Broken" in message
+    assert "broken.SC2Replay; player=1: Alpha" in message
+    assert "supply=30" in message
+    assert "time=1:00" in message
+    assert "frame=960" in message
+    assert "reason=no SALT table entry" in message
 
 
 def test_format_salt_encoding_includes_interference_matrix() -> None:
@@ -104,3 +119,26 @@ def test_format_salt_encoding_includes_cyclone() -> None:
     encoding = format_salt_encoding([_item(36, 207, "Cyclone")], "Cyclone")
 
     assert encoding == "$Cyclone~@#:!K"
+
+
+def test_format_salt_encoding_includes_modern_entities() -> None:
+    encoding = format_salt_encoding(
+        [
+            _item(21, 121, "Adept"),
+            _item(37, 188, "Liberator"),
+            _item(36, 198, "Shield Battery"),
+            _item(56, 264, "Ravager"),
+            _item(49, 354, "Muscular Augments"),
+            _item(52, 257, "Mag-Field Accelerator"),
+            _item(77, 482, "Drilling Claws"),
+        ],
+        "Modern",
+    )
+
+    assert encoding == '$Modern~1" !PA#\'!Q@#1 OT$7")M%U#VP$0#Ti(!#Z'
+
+
+def test_format_salt_encoding_uses_level_one_slot_for_later_upgrade_levels() -> None:
+    encoding = format_salt_encoding([_item(65, 350, "Protoss Ground Armor Level 2")], "Level")
+
+    assert encoding == "$Level~]%Q#2"

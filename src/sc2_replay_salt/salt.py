@@ -62,6 +62,8 @@ SALT_STRUCTURES = {
     "Spore Crawler": 44,
     "Ultralisk Cavern": 45,
     "Creep Tumor": 46,
+    "Shield Battery": 47,
+    "Lurker Den": 48,
 }
 
 SALT_UNITS = {
@@ -113,6 +115,8 @@ SALT_UNITS = {
     "Swarm Host": 46,
     "Swarm Host MP": 46,
     "Viper": 47,
+    "Adept": 48,
+    "Liberator": 49,
 }
 
 SALT_MORPHS = {
@@ -125,6 +129,7 @@ SALT_MORPHS = {
     "Brood Lord": 6,
     "Baneling": 7,
     "Overseer": 8,
+    "Ravager": 9,
 }
 
 SALT_UPGRADES = {
@@ -192,6 +197,15 @@ SALT_UPGRADES = {
     "Khaydarin Amulet": 48,
     "Neural Parasite": 49,
     "Pathogen Glands": 50,
+    "Hi-Sec Auto Tracking": 51,
+    "Mag-Field Accelerator": 52,
+    "Adaptive Talons": 53,
+    "Muscular Augments": 54,
+    "Hyperflight Rotors": 55,
+    "Weapon Refit": 56,
+    "Terran Vehicle And Ship Armor Level 1": 57,
+    "Terran Vehicle And Ship Armors Level 1": 57,
+    "Drilling Claws": 58,
 }
 
 SALT_TABLES = (
@@ -202,12 +216,16 @@ SALT_TABLES = (
 )
 
 
-def format_salt_encoding(items: Sequence[BuildOrderItem], title: str) -> str:
-    records = [_format_record(item) for item in _salt_items(items)]
+class SaltEncodingError(ValueError):
+    pass
+
+
+def format_salt_encoding(items: Sequence[BuildOrderItem], title: str, source: str | None = None) -> str:
+    records = [_format_record(item) for item in _salt_items(items, title, source)]
     return f"{SALT_VERSION}{_sanitize_title(title)}~{''.join(records)}"
 
 
-def _salt_items(items: Sequence[BuildOrderItem]) -> list[BuildOrderItem]:
+def _salt_items(items: Sequence[BuildOrderItem], title: str, source: str | None = None) -> list[BuildOrderItem]:
     counts: defaultdict[str, int] = defaultdict(int)
     supply_provider_count = 0
     result: list[BuildOrderItem] = []
@@ -217,7 +235,7 @@ def _salt_items(items: Sequence[BuildOrderItem]) -> list[BuildOrderItem]:
         if item.supply_used is None or item.supply_used < SALT_MIN_SUPPLY or item.supply_used > SALT_MAX_SUPPLY:
             continue
         if _salt_lookup(item.name) is None:
-            continue
+            raise SaltEncodingError(_unencodable_item_message(item, title, source))
 
         if item.name in SALT_SUPPLY_PROVIDERS:
             supply_provider_count += 1
@@ -229,6 +247,15 @@ def _salt_items(items: Sequence[BuildOrderItem]) -> list[BuildOrderItem]:
                 continue
         result.append(item)
     return result
+
+
+def _unencodable_item_message(item: BuildOrderItem, title: str, source: str | None) -> str:
+    context = source or title
+    return (
+        f"Cannot encode build-order item as SALT: {item.name!r}; "
+        f"title={title!r}; source={context!r}; supply={item.supply_used}; "
+        f"time={item.time_label}; frame={item.frame}; reason=no SALT table entry"
+    )
 
 
 def _format_record(item: BuildOrderItem) -> str:
@@ -250,7 +277,16 @@ def _format_record(item: BuildOrderItem) -> str:
 
 
 def _salt_lookup(name: str) -> tuple[int, int] | None:
-    return SALT_LOOKUP.get(_normalize_name(name))
+    normalized = _normalize_name(name)
+    lookup = SALT_LOOKUP.get(normalized)
+    if lookup is not None:
+        return lookup
+
+    for level in ("2", "3"):
+        level_suffix = f"level{level}"
+        if normalized.endswith(level_suffix):
+            return SALT_LOOKUP.get(f"{normalized[:-len(level_suffix)]}level1")
+    return None
 
 
 def _encode_byte(value: int) -> str:

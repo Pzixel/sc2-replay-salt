@@ -180,6 +180,30 @@ def test_extract_build_order_uses_command_events_for_research_and_morphs() -> No
     ]
 
 
+def test_extract_build_order_normalizes_modern_command_names() -> None:
+    player = FakePlayer(1, "Alpha", "Zerg")
+
+    items = extract_build_order(
+        [
+            PlayerStatsEvent(16, 1, 40),
+            BasicCommandEvent(16, player, "MorphToRavager"),
+            BasicCommandEvent(32, player, "MorphToOverseer"),
+            BasicCommandEvent(48, player, "UpgradeToLurkerDenMP"),
+            BasicCommandEvent(64, player, "Researchoverlordspeed"),
+            BasicCommandEvent(80, player, "ResearchEvolveMuscularAugments"),
+        ],
+        PlayerRef(pid=1, name="Alpha"),
+    )
+
+    assert [item.format() for item in items] == [
+        " 40   0:01  Ravager",
+        " 40   0:02  Overseer",
+        " 40   0:03  Lurker Den",
+        " 40   0:04  Pneumatized Carapace",
+        " 40   0:05  Muscular Augments",
+    ]
+
+
 def test_extract_build_order_uses_unit_commands_and_reserved_supply() -> None:
     player = FakePlayer(1, "Alpha", "Terran")
 
@@ -256,6 +280,22 @@ def test_extract_build_order_marks_unresolved_unit_commands() -> None:
     assert [item.format() for item in items] == [
         " 27   0:10  ???",
     ]
+
+
+def test_extract_build_order_filters_spell_and_ammo_units() -> None:
+    items = extract_build_order(
+        [
+            UnitInitEvent(160, 1, "AdeptPhaseShift"),
+            UnitInitEvent(176, 1, "AutoTurret"),
+            UnitInitEvent(192, 1, "Broodling"),
+            UnitInitEvent(208, 1, "CreepTumorQueen"),
+            UnitInitEvent(224, 1, "Interceptor"),
+            UnitInitEvent(240, 1, "OracleStasisTrap"),
+        ],
+        PlayerRef(pid=1, name="Alpha"),
+    )
+
+    assert items == []
 
 
 def test_extract_build_order_does_not_invent_unrelated_same_frame_units() -> None:

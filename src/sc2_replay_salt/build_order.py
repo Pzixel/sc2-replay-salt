@@ -46,19 +46,39 @@ NOISE_NAME_PREFIXES = (
 )
 
 NOISE_NAMES = {
+    "AdeptPhaseShift",
+    "AutoTurret",
     "BroodlingEscort",
+    "Broodling",
     "Changeling",
+    "CreepTumorQueen",
     "GhostAlternate",
+    "Interceptor",
     "KD8Charge",
     "Larva",
     "LocustMP",
     "MULE",
+    "OracleStasisTrap",
+    "ReleaseInterceptorsBeacon",
 }
 
 WORKER_NAMES = {
     "Drone",
     "Probe",
     "SCV",
+}
+
+FRIENDLY_NAME_OVERRIDES = {
+    "BansheeSpeed": "Hyperflight Rotors",
+    "CycloneLockOnDamageUpgrade": "Mag-Field Accelerator",
+    "DiggingClaws": "Adaptive Talons",
+    "EvolveGroovedSpines": "Grooved Spines",
+    "EvolveMuscularAugments": "Muscular Augments",
+    "HiSecAutoTracking": "Hi-Sec Auto Tracking",
+    "LurkerDenMP": "Lurker Den",
+    "overlordspeed": "Pneumatized Carapace",
+    "PsiStormTech": "Psi Storm",
+    "TemplarArchive": "Templar Archives",
 }
 
 UNIT_FOOD_COSTS = {
@@ -265,7 +285,7 @@ def extract_build_order(
         seconds = event_seconds(event, frame, options.display_time_scale)
         food_cost = UNIT_FOOD_COSTS.get(name, 0.0)
         is_worker = name in WORKER_NAMES
-        is_unit_command = is_command and food_cost > 0 and not is_worker
+        is_unit_command = is_command and _is_unit_production_command(event) and food_cost > 0 and not is_worker
         if event_type == "UnitBornEvent" and has_command_events and food_cost > 0:
             if is_worker:
                 continue
@@ -329,6 +349,13 @@ def _command_quantity(event: object) -> int:
     if isinstance(flags, dict) and flags.get("repeat"):
         return 2
     return 1
+
+
+def _is_unit_production_command(event: object) -> bool:
+    ability_name = str_or_none(getattr(event, "ability_name", None))
+    if not ability_name:
+        ability_name = _fallback_ability_name(event)
+    return bool(ability_name and ability_name.startswith(UNIT_COMMAND_PREFIXES))
 
 
 def _monotonic_supply(supply_used: int | None, last_supply_used: int | None) -> int | None:
@@ -404,6 +431,8 @@ def _command_item_name(prefix: str, name: str) -> str:
         return UNRESOLVED_NAME
     if prefix in ("Upgrade", "Upgrades"):
         return _normalize_upgrade_command_name(name)
+    if prefix == "Morph" and name.startswith("To"):
+        return name[2:]
     return name
 
 
@@ -559,6 +588,9 @@ def _format_grouped_items(items: Sequence[BuildOrderItem]) -> list[str]:
 
 
 def _friendly_name(name: str) -> str:
+    if name in FRIENDLY_NAME_OVERRIDES:
+        return FRIENDLY_NAME_OVERRIDES[name]
+
     normalized = name
     for suffix in ("Lowered", "Flying"):
         if normalized.endswith(suffix):

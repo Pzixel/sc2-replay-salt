@@ -86,7 +86,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.easy or args.both:
                 output = format_combined_output(replay_name, player, items, salt_title)
             elif args.salt:
-                output = format_salt_encoding(items, salt_title)
+                output = format_salt_encoding(items, salt_title, source=_salt_source(replay_name, player))
             else:
                 output = format_build_order(replay_name, player, items)
 
@@ -125,7 +125,14 @@ def format_combined_output(
     items: Sequence[BuildOrderItem],
     salt_title: str,
 ) -> str:
-    return f"{format_build_order(replay_name, player, items)}\n\nSALT:\n{format_salt_encoding(items, salt_title)}"
+    return (
+        f"{format_build_order(replay_name, player, items)}\n\nSALT:\n"
+        f"{format_salt_encoding(items, salt_title, source=_salt_source(replay_name, player))}"
+    )
+
+
+def _salt_source(replay_name: str, player: PlayerRef) -> str:
+    return f"{replay_name}; player={player.label}"
 
 
 def _collect_replay_paths(paths: Sequence[Path]) -> list[Path]:
