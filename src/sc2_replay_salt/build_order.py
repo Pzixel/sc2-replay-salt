@@ -68,6 +68,16 @@ WORKER_NAMES = {
     "SCV",
 }
 
+LEAGUE_NAMES = {
+    1: "Bronze",
+    2: "Silver",
+    3: "Gold",
+    4: "Platinum",
+    5: "Diamond",
+    6: "Master",
+    7: "Grandmaster",
+}
+
 FRIENDLY_NAME_OVERRIDES = {
     "BansheeSpeed": "Hyperflight Rotors",
     "CycloneLockOnDamageUpgrade": "Mag-Field Accelerator",
@@ -142,11 +152,13 @@ class PlayerRef:
     pid: int
     name: str
     race: str | None = None
+    highest_league: str | None = None
 
     @property
     def label(self) -> str:
-        race = f", {self.race}" if self.race else ""
-        return f"{self.pid}: {self.name}{race}"
+        details = [value for value in (self.race, self.highest_league) if value]
+        suffix = f", {', '.join(details)}" if details else ""
+        return f"{self.pid}: {self.name}{suffix}"
 
 
 @dataclass(frozen=True)
@@ -193,9 +205,17 @@ def player_refs(players: Sequence[object]) -> list[PlayerRef]:
                 pid=pid if pid is not None else index,
                 name=str(getattr(player, "name", f"Player {index}")),
                 race=str_or_none(getattr(player, "play_race", None) or getattr(player, "race", None)),
+                highest_league=_highest_league_name(getattr(player, "highest_league", None)),
             )
         )
     return refs
+
+
+def _highest_league_name(value: object) -> str | None:
+    league = int_or_none(value)
+    if league is not None:
+        return LEAGUE_NAMES.get(league)
+    return str_or_none(value)
 
 
 def resolve_player(players: Sequence[object], selector: str | None) -> PlayerRef:

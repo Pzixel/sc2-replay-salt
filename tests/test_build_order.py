@@ -18,6 +18,7 @@ class FakePlayer:
     pid: int
     name: str
     play_race: str
+    highest_league: object | None = None
 
 
 class UnitInitEvent:
@@ -86,6 +87,24 @@ def test_resolve_player_accepts_id_or_name() -> None:
 
     assert resolve_player(players, "2").name == "Beta"
     assert resolve_player(players, "beta").pid == 2
+
+
+def test_player_label_includes_highest_league_when_available() -> None:
+    player = resolve_player([FakePlayer(1, "Alpha", "Terran", "Master")], None)
+
+    assert player.label == "1: Alpha, Terran, Master"
+
+
+def test_player_label_maps_numeric_highest_league_when_available() -> None:
+    player = resolve_player([FakePlayer(1, "Alpha", "Terran", "6")], None)
+
+    assert player.label == "1: Alpha, Terran, Master"
+
+
+def test_player_label_omits_unknown_numeric_highest_league() -> None:
+    player = resolve_player([FakePlayer(1, "Alpha", "Terran", 0)], None)
+
+    assert player.label == "1: Alpha, Terran"
 
 
 def test_extract_build_order_filters_player_and_tracker_events() -> None:
