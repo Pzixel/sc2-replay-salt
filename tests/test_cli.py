@@ -128,3 +128,28 @@ def test_easy_no_prompt_writes_all_players_when_no_player_is_remembered(tmp_path
 
     assert (tmp_path / "practice - Alpha build order.txt").exists()
     assert (tmp_path / "practice - GABE build order.txt").exists()
+
+
+def test_easy_no_prompt_writes_all_players_when_player_is_remembered(tmp_path, monkeypatch) -> None:
+    replay_path = tmp_path / "practice.SC2Replay"
+    replay_path.write_bytes(b"")
+    fake_players = [FakePlayer(1, "Alpha", "Zerg"), FakePlayer(2, "GABE", "Terran")]
+
+    def fake_build_order_for_replay(path: Path, player_selector: str | None, options: object) -> tuple[FakeReplay, PlayerRef, list[BuildOrderItem]]:
+        player = fake_players[int(player_selector or "1") - 1]
+        return (
+            FakeReplay(filename=str(path)),
+            PlayerRef(pid=player.pid, name=player.name, race=player.play_race),
+            [BuildOrderItem(frame=16, seconds=1, name="Supply Depot", supply_used=14)],
+        )
+
+    monkeypatch.setattr(cli, "load_defaults", lambda: {"player": "GABE"})
+    monkeypatch.setattr(cli, "load_replay", lambda path: FakeReplay(filename=str(path)))
+    monkeypatch.setattr(cli, "replay_players", lambda replay: fake_players)
+    monkeypatch.setattr(cli, "build_order_for_replay", fake_build_order_for_replay)
+
+    assert cli.main(["--easy", "--no-prompt", str(replay_path)]) == 0
+
+    assert (tmp_path / "practice - Alpha build order.txt").exists()
+    assert (tmp_path / "practice - GABE build order.txt").exists()
+

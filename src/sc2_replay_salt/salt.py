@@ -54,6 +54,7 @@ SALT_STRUCTURES = {
     "Hatchery": 36,
     "Hydralisk Den": 37,
     "Infestation Pit": 38,
+    "Nydus Canal": 39, # maybe it's not a network but a summoned canal so it should be skipped?
     "Nydus Network": 39,
     "Roach Warren": 40,
     "Spawning Pool": 41,

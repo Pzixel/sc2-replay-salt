@@ -142,3 +142,9 @@ def test_format_salt_encoding_uses_level_one_slot_for_later_upgrade_levels() -> 
     encoding = format_salt_encoding([_item(65, 350, "Protoss Ground Armor Level 2")], "Level")
 
     assert encoding == "$Level~]%Q#2"
+
+
+def test_format_salt_encoding_includes_nydus_canal() -> None:
+    encoding = format_salt_encoding([_item(66, 416, "Nydus Canal")], "Nydus")
+
+    assert encoding == "$Nydus~^&W G"

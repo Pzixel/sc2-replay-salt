@@ -174,14 +174,15 @@ def _player_selector(
     remembered = _remembered_player(defaults)
     replay = load_replay(path)
     refs = player_refs(replay_players(replay))
+    if (no_prompt or not sys.stdin.isatty()) and all_on_no_prompt and len(refs) > 1:
+        return ALL_PLAYERS
+
     if remembered:
         for ref in refs:
             if ref.name.casefold() == remembered.casefold() or str(ref.pid) == remembered:
                 return remembered
 
     if no_prompt or not sys.stdin.isatty():
-        if all_on_no_prompt and len(refs) > 1:
-            return ALL_PLAYERS
         return None
 
     if len(refs) <= 1:
